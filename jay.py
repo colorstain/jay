@@ -50,12 +50,18 @@ class InstanceMonitor(object):
 
 
 def table(rows, add_index=False):
+    """
+    Generates a table from a list of lists. The first row should contain the
+    headers.
+    """
     rows = [list(row) for row in rows]
     headers = rows[0]
     body = rows[1:]
     if add_index:
         headers.insert(0, '#')
         body = [[i] + row for i, row in enumerate(body)]
+
+    # Determining the lenght of the columns
     col_lens = []
     for i in range(len(body[0])):
         col_lens.append(len(str(max([x[i] for x in body] + headers[i:i+1],
@@ -83,6 +89,28 @@ def table(rows, add_index=False):
     return '\n'.join(output)
 
 
+def echo_instances(instances, add_index=False):
+    out = table([instances[0]._fields] + instances, add_index)
+    click.echo(out)
+
+
+def _get_ssh_cmd(instance, keys_dir, ssh_user, private_ip):
+    key = '{}.pem'.format(instance.key_name)
+    key_path = os.path.join(keys_dir, key)
+    if not os.path.isfile(key_path):
+        raise click.ClickException(
+            'Key {} does not exist'.format(key))
+    click.echo(
+        'sshing into {i.name} using {0}'.format(key, i=instance))
+    ip_attr = 'private_ip' if private_ip else 'public_ip'
+    ip_addr = getattr(instance, ip_attr)
+    host = '{}@{}'.format(ssh_user, ip_addr)
+    return ['ssh', '-i', key_path, host]
+
+
+# ----------------------- commands --------------------------------------------
+
+
 @click.group()
 @click.option('--profile', default=None, help='Name of aws profile.')
 @click.option('--region', default='')
@@ -106,6 +134,9 @@ def cli(ctx, tags, profile, region):
               is_flag=True, help='Use private ip to ssh to instance.')
 @click.pass_obj
 def ssh(monitor, private_ip, keys_dir, ssh_user, tmux_all):
+    """
+    SSH into ec2 servers.
+    """
     instances = monitor.instances
     if instances:
         if tmux_all:
@@ -132,41 +163,17 @@ def ssh(monitor, private_ip, keys_dir, ssh_user, tmux_all):
                 'Please select an instance from the list',
                 type=click.IntRange(0, len(instances)), default=0)
             instance = instances[index]
-            key = '{}.pem'.format(instance.key_name)
-            key_path = os.path.join(keys_dir, key)
-            if not os.path.isfile(key_path):
-                raise click.ClickException(
-                    'Key {} does not exist'.format(key))
-            click.echo(
-                'sshing into {i.name} using {0}'.format(key, i=instance))
-            ip_attr = 'private_ip' if private_ip else 'public_ip'
-            ip_addr = getattr(instance, ip_attr)
-            host = '{}@{}'.format(ssh_user, ip_addr)
-            subprocess.call(['ssh', '-i', key_path, host])
+            cmd = _get_ssh_cmd(instance, keys_dir, ssh_user, private_ip)
+            subprocess.call(cmd)
     else:
-        click.echo('No instances!')
-
-
-def _get_ssh_cmd(instance, keys_dir, ssh_user, private_ip):
-    key = '{}.pem'.format(instance.key_name)
-    key_path = os.path.join(keys_dir, key)
-    if not os.path.isfile(key_path):
-        raise click.ClickException(
-            'Key {} does not exist'.format(key))
-    click.echo(
-        'sshing into {i.name} using {0}'.format(key, i=instance))
-    ip_attr = 'private_ip' if private_ip else 'public_ip'
-    ip_addr = getattr(instance, ip_attr)
-    host = '{}@{}'.format(ssh_user, ip_addr)
-    return ['ssh', '-i', key_path, host]
+        click.echo('No instances available!')
 
 
 @cli.command()
 @click.pass_obj
 def ls(monitor):
+    """
+    List running instances.
+    """
     echo_instances(monitor.instances)
 
-
-def echo_instances(instances, add_index=False):
-    out = table([instances[0]._fields] + instances, add_index)
-    click.echo(out)
