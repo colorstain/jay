@@ -3,6 +3,7 @@ from setuptools import setup
 setup(
     name='jay',
     author='colorstain',
+    author_email="colostain+jay@gmail.com",
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
