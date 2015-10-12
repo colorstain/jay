@@ -9,6 +9,34 @@ To ssh into multiple servers at once make sure to install `tmux`.
 
 ## Usage
 
+### AWS configuration
+
+Before using `jay`, you should setup your aws credentials. `jay` uses boto so
+you can configure them using any of the allowed [boto configurations](http://boto.readthedocs.org/en/latest/boto_config_tut.html)
+
+The easist way is to add a config file at `~/.aws/config` like this:
+
+```
+[default]
+output = json
+region = us-east-1
+[profile prod]
+output = json
+region = us-west-1
+```
+
+and your credentials at `~/.aws/credentials`:
+
+```
+[default]
+aws_access_key_id = ACCESS-KEY-ID
+aws_secret_access_key = ACCESS-SECRET-KEY
+[prod]
+aws_access_key_id = ACCESS-KEY-ID
+aws_secret_access_key = ACCESS-SECRET-KEY
+```
+
+### Commands
 ```
 Usage: jay [OPTIONS] COMMAND [ARGS]...
 
