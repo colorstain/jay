@@ -94,18 +94,22 @@ def echo_instances(instances, add_index=False):
     click.echo(out)
 
 
-def _get_ssh_cmd(instance, keys_dir, ssh_user, private_ip):
-    key = '{}.pem'.format(instance.key_name)
-    key_path = os.path.join(keys_dir, key)
-    if not os.path.isfile(key_path):
-        raise click.ClickException(
-            'Key {} does not exist'.format(key))
-    click.echo(
-        'sshing into {i.name} using {0}'.format(key, i=instance))
+def _get_ssh_cmd(instance, keys_dir, ssh_user, private_ip, no_pem):
     ip_attr = 'private_ip' if private_ip else 'public_ip'
     ip_addr = getattr(instance, ip_attr)
     host = '{}@{}'.format(ssh_user, ip_addr)
-    return ['ssh', '-i', key_path, host]
+    if not no_pem:
+        key = '{}.pem'.format(instance.key_name)
+        key_path = os.path.join(keys_dir, key)
+        if not os.path.isfile(key_path):
+            raise click.ClickException(
+                'Key {} does not exist'.format(key))
+        click.echo(
+            'SSHing {i.name} using {0}.'.format(key, i=instance))
+        return ['ssh', '-i', key_path, host]
+    else:
+        click.echo('SSHing into {i.name}.'.format(i=instance))
+        return ['ssh', host]
 
 
 # ----------------------- commands --------------------------------------------
@@ -113,16 +117,16 @@ def _get_ssh_cmd(instance, keys_dir, ssh_user, private_ip):
 
 @click.group()
 @click.option('--profile', default=None, help='Name of aws profile.')
-@click.option('--region', default='')
 @click.option('--tags', '-t', nargs=2,
               multiple=True, help='Instance tags as name value pairs')
 @click.pass_context
-def cli(ctx, tags, profile, region):
+def cli(ctx, tags, profile):
     tags = {tag[0]: [tag[1]] for tag in tags}
     ctx.obj = InstanceMonitor(tags, profile)
 
 
 @cli.command()
+@click.option('--no-pem', is_flag=True, help='Do not use a PEM key to ssh.')
 @click.option('--tmux-all', is_flag=True,
               help='SSHs to all servers matching the filters using tmux.')
 @click.option('--ssh-user', '-u', default='ubuntu')
@@ -133,7 +137,7 @@ def cli(ctx, tags, profile, region):
 @click.option('--private-ip', '-p',
               is_flag=True, help='Use private ip to ssh to instance.')
 @click.pass_obj
-def ssh(monitor, private_ip, keys_dir, ssh_user, tmux_all):
+def ssh(monitor, private_ip, keys_dir, ssh_user, tmux_all, no_pem):
     """
     SSH into ec2 servers.
     """
@@ -145,7 +149,7 @@ def ssh(monitor, private_ip, keys_dir, ssh_user, tmux_all):
                     len(instances)), abort=True)
             cmds = [
                 ' '.join(_get_ssh_cmd(instance, keys_dir,
-                                      ssh_user, private_ip))
+                                      ssh_user, private_ip, no_pem))
                 for instance in instances]
             uid = str(uuid.uuid4())[:6]
             session_name = '{}-{}'.format(NAME, uid)
@@ -163,7 +167,8 @@ def ssh(monitor, private_ip, keys_dir, ssh_user, tmux_all):
                 'Please select an instance from the list',
                 type=click.IntRange(0, len(instances)), default=0)
             instance = instances[index]
-            cmd = _get_ssh_cmd(instance, keys_dir, ssh_user, private_ip)
+            cmd = _get_ssh_cmd(
+                instance, keys_dir, ssh_user, private_ip, no_pem)
             subprocess.call(cmd)
     else:
         click.echo('No instances available!')
